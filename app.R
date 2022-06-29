@@ -1,49 +1,112 @@
-#
-# This is a Shiny web application. You can run the application by clicking
-# the 'Run App' button above.
-#
-# Find out more about building applications with Shiny here:
-#
-#    http://shiny.rstudio.com/
-#
 
 library(shiny)
+library(ggplot2)
+library(plotly)
+library(scales)
+library(ToxicR)
 
-# Define UI for application that draws a histogram
-ui <- fluidPage(
+## Only run examples in interactive R sessions
 
-    # Application title
-    titlePanel("Old Faithful Geyser Data"),
+# Model list - Dichotomous case
+model_list<-list("hill","gamma","logistic","log-probit","weibull",
+                 "log-logistic","probit","multistage")
 
-    # Sidebar with a slider input for number of bins 
-    sidebarLayout(
-        sidebarPanel(
-            sliderInput("bins",
-                        "Number of bins:",
-                        min = 1,
-                        max = 50,
-                        value = 30)
-        ),
+model_list2<-list("FUNL","hill","exp-3","exp-5","power")
 
-        # Show a plot of the generated distribution
-        mainPanel(
-           plotOutput("distPlot")
-        )
-    )
+
+
+fit_type<-list("mcmc", "mle", "laplace")
+ui<-navbarPage(title = "Toxic R", selected="Dichotomous Fitting",
+               # Option 1. Select box option
+               
+               tabPanel("Dichotomous Fitting",  fluidPage(
+                 sidebarLayout(
+                   sidebarPanel(
+                     
+                     
+                     conditionalPanel(condition="input.tabs =='Single Model'",
+                                      helpText("Dichotomous Single Model"),
+                                      
+                                      selectInput(inputId="model", 
+                                                  label= "Choose a model type",
+                                                  choices=model_list, 
+                                                  selected = "gamma"),
+                                      
+                                      selectInput(inputId="fit_type", 
+                                                  label= "Choose a fit type",
+                                                  choices=fit_type, 
+                                                  selected = "mcmc"),
+                                      
+                                      sliderInput(inputId="bmr_slide",
+                                                  label="Choose a BMR level",
+                                                  min=0,max=1,value=0.1)
+                     ),
+                     
+                     conditionalPanel(condition="input.tabs =='Model Average'",
+                                      helpText("Dichotomous Model Average"),
+                                      
+                                      # selectInput(inputId="model", 
+                                      #             label= "Choose a model type",
+                                      #             choices=model_list, 
+                                      #             selected = "gamma"),
+                                      # 
+                                      selectInput(inputId="fit_type2",
+                                                  label= "Choose a fit type",
+                                                  choices=fit_type,
+                                                  selected = "mcmc"),
+                                      
+                                      sliderInput(inputId="bmr_slide2",
+                                                  label="Choose a BMR level",
+                                                  min=0,max=1,value=0.1)
+                     )
+                     
+                     
+                   ),
+                   mainPanel(
+                     
+                     tabsetPanel(id="tabs",
+                                 tabPanel("Single Model",plotlyOutput(outputId = "dic_sing_plot")),
+                                 tabPanel("Model Average",plotlyOutput(outputId = "dic_ma_plot"))
+                                 
+                                 
+                     )
+                     
+                   )
+                 )
+                 
+               )
+               
+               ),
+               
+               tabPanel("Continous Fitting")
 )
 
-# Define server logic required to draw a histogram
-server <- function(input, output) {
 
-    output$distPlot <- renderPlot({
-        # generate bins based on input$bins from ui.R
-        x    <- faithful[, 2]
-        bins <- seq(min(x), max(x), length.out = input$bins + 1)
 
-        # draw the histogram with the specified number of bins
-        hist(x, breaks = bins, col = 'darkgray', border = 'white')
-    })
+server<- function (input,output){
+  
+  
+  output$dic_sing_plot<-renderPlotly({
+    temp_fit = single_dichotomous_fit(mData[,1],mData[,2],mData[,3],model_type = input$model,fit_type = input$fit_type, BMR = input$bmr_slide)
+    
+    #For MCMC  
+    if (input$fit_type=="mcmc"){
+      .plot.BMDdich_fit_MCMC(fit=temp_fit,fit_type=input$fit_type)
+    }
+    
+    #For MCMC  
+    else if (input$fit_type!="mcmc"){
+      .plot.BMDdich_fit_maximized(fit=temp_fit,fit_type=input$fit_type)
+    }
+    
+    
+  })
+  
+  output$dic_ma_plot<-renderPlotly({
+    temp_fit = ma_dichotomous_fit(mData[,1],mData[,2],mData[,3],fit_type = input$fit_type2, BMR = input$bmr_slide2)
+    .plot.BMDdichotomous_MA(A=temp_fit)
+  })
+  
 }
 
-# Run the application 
-shinyApp(ui = ui, server = server)
+shinyApp(ui=ui, server=server)
