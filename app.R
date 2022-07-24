@@ -1,35 +1,50 @@
+## Author: Sooyoeng Lim
+## Purpose: Implement ToxicR's base functions in GUI interface by using R-Shiny
 
+
+
+# Load required libraries 
 library(shiny)
 library(ggplot2)
 library(plotly)
 library(scales)
 library(ToxicR)
 
-## Only run examples in interactive R sessions
+## Developer's Note- -
+## 1. Only run examples in interactive R sessions
+## 2. Need to change outputs to reactive() object
+## 3. Action button should be added to run program
 
 # Model list - Dichotomous case
-model_list<-list("hill","gamma","logistic","log-probit","weibull",
-                 "log-logistic","probit","multistage")
-
-model_list2<-list("FUNL","hill","exp-3","exp-5","power")
+ls_dich_models<-ToxicR:::.dichotomous_models
+ls_cont_models<-ToxicR:::.continuous_models
 
 
 
-fit_type<-list("mcmc", "mle", "laplace")
+# selectInput("dataset", label = "Dataset", choices = ls("package:datasets"))
+# choices should be list format
+
+
+
+# MLE will be removed from the APP
+fit_type<-list("mcmc", "laplace")
+
+
 ui<-navbarPage(title = "Toxic R", selected="Dichotomous Fitting",
                # Option 1. Select box option
-               
-               tabPanel("Dichotomous Fitting",  fluidPage(
+               tabPanel("Dichotomous Fitting", 
+               fluidPage(
                  sidebarLayout(
+                   
                    sidebarPanel(
                      
-                     
+                     fileInput("Upload your dataset",NULL),  
                      conditionalPanel(condition="input.tabs =='Single Model'",
                                       helpText("Dichotomous Single Model"),
                                       
                                       selectInput(inputId="model", 
                                                   label= "Choose a model type",
-                                                  choices=model_list, 
+                                                  choices=ls_dich_models, 
                                                   selected = "gamma"),
                                       
                                       selectInput(inputId="fit_type", 
@@ -40,6 +55,7 @@ ui<-navbarPage(title = "Toxic R", selected="Dichotomous Fitting",
                                       sliderInput(inputId="bmr_slide",
                                                   label="Choose a BMR level",
                                                   min=0,max=1,value=0.1)
+                                      
                      ),
                      
                      conditionalPanel(condition="input.tabs =='Model Average'",
@@ -84,8 +100,11 @@ ui<-navbarPage(title = "Toxic R", selected="Dichotomous Fitting",
 
 
 server<- function (input,output){
+
   
-  
+  # Is there any part I can change them as reactive expression? 
+  # 1. Input treatment -> 2. Output rendering
+    
   output$dic_sing_plot<-renderPlotly({
     temp_fit = single_dichotomous_fit(mData[,1],mData[,2],mData[,3],model_type = input$model,fit_type = input$fit_type, BMR = input$bmr_slide)
     
@@ -99,14 +118,12 @@ server<- function (input,output){
       .plot.BMDdich_fit_maximized(fit=temp_fit,fit_type=input$fit_type)
     }
     
-    
   })
-  
   output$dic_ma_plot<-renderPlotly({
     temp_fit = ma_dichotomous_fit(mData[,1],mData[,2],mData[,3],fit_type = input$fit_type2, BMR = input$bmr_slide2)
     .plot.BMDdichotomous_MA(A=temp_fit)
   })
-  
+
 }
 
 shinyApp(ui=ui, server=server)
