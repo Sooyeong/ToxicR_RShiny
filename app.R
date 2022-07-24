@@ -14,6 +14,7 @@ library(ToxicR)
 ## 1. Only run examples in interactive R sessions
 ## 2. Need to change outputs to reactive() object
 ## 3. Action button should be added to run program
+## 4. For model average part- implement checkboxGroupInput() 
 
 # Model list - Dichotomous case
 ls_dich_models<-ToxicR:::.dichotomous_models
@@ -70,7 +71,10 @@ ui<-navbarPage(title = "Toxic R", selected="Dichotomous Fitting",
                                                   label= "Choose a fit type",
                                                   choices=fit_type,
                                                   selected = "mcmc"),
-                                      
+                                      checkboxGroupInput(inputId="dich_MA_input",
+                                                         label="Models for fitting dichoutomous model average",
+                                                         choices=ls_dich_models,
+                                                         selected=ls_dich_models),
                                       sliderInput(inputId="bmr_slide2",
                                                   label="Choose a BMR level",
                                                   min=0,max=1,value=0.1)
