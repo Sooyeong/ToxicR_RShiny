@@ -11,10 +11,14 @@ library(scales)
 library(ToxicR)
 
 ## Developer's Note- -
-## 1. Only run examples in interactive R sessions
-## 2. Need to change outputs to reactive() object
-## 3. Action button should be added to run program
-## 4. For model average part- implement checkboxGroupInput() 
+## 1. Only run examples in interactive R sessions 
+## 2. Need to change outputs to reactive() object 
+## 3. Action button should be added to run program - 07/24/22
+## 4. For model average part- implement checkboxGroupInput()  -- Updated 07/24/22
+## 5. Modify impelmented code for the most up to date Toxic R package
+## 6. Provide example fitting case
+## 7. Upload the discussion note with John
+
 
 # Model list - Dichotomous case
 ls_dich_models<-ToxicR:::.dichotomous_models
@@ -55,7 +59,9 @@ ui<-navbarPage(title = "Toxic R", selected="Dichotomous Fitting",
                                       
                                       sliderInput(inputId="bmr_slide",
                                                   label="Choose a BMR level",
-                                                  min=0,max=1,value=0.1)
+                                                  min=0,max=1,value=0.1),
+                                      
+                                      actionButton("run_dich_single","Run" ,class="btn-lg btn-success")
                                       
                      ),
                      
@@ -77,7 +83,8 @@ ui<-navbarPage(title = "Toxic R", selected="Dichotomous Fitting",
                                                          selected=ls_dich_models),
                                       sliderInput(inputId="bmr_slide2",
                                                   label="Choose a BMR level",
-                                                  min=0,max=1,value=0.1)
+                                                  min=0,max=1,value=0.1),
+                                      actionButton("run_dich_MA","Run",class="btn-lg btn-success")
                      )
                      
                      
@@ -86,7 +93,10 @@ ui<-navbarPage(title = "Toxic R", selected="Dichotomous Fitting",
                      
                      tabsetPanel(id="tabs",
                                  tabPanel("Single Model",plotlyOutput(outputId = "dic_sing_plot")),
-                                 tabPanel("Model Average",plotlyOutput(outputId = "dic_ma_plot"))
+                                 tabPanel("Model Average",plotlyOutput(outputId = "dic_ma_plot")),
+                    
+                     downloadButton("download1", "Download")
+                                 
                                  
                                  
                      )
