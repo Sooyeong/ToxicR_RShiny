@@ -33,6 +33,18 @@ Y<-mData[,2]
 N<-mData[,3]
 
 
+res<-single_dichotomous_fit(mData[,1],mData[,2],mData[,3],model_type ="hill",fit_type = "laplace", BMR = 0.1)
+# sumamry is only avaialbe for the fit=laplace case not for the mcmc
+summary(res)
+
+res2<-ma_dichotomous_fit(mData[,1],mData[,2],mData[,3],fit_type = "laplace", BMR = 0.1)
+
+summary(res)
+
+#BMD-BMDS, BMDL should be provided
+summary(res2)
+
+
 # Model list - Dichotomous case
 ls_dich_models<-ToxicR:::.dichotomous_models
 ls_cont_models<-ToxicR:::.continuous_models
@@ -104,12 +116,21 @@ ui<-navbarPage(title = "Toxic R", selected="Dichotomous Fitting",
                    mainPanel(
                      
                      tabsetPanel(id="tabs",
-                                 tabPanel("Single Model",plotlyOutput(outputId = "dic_sing_plot")),
-                                 tabPanel("Model Average",plotlyOutput(outputId = "dic_ma_plot")),
+                                 tabPanel("Single Model", plotlyOutput(outputId = "dic_sing_plot"),
+                                          downloadButton("download1", "Download"),
+                                          verbatimTextOutput("sum_dich_single")
+                                          
+                                          
+                                          ),
+                                 tabPanel("Model Average", plotlyOutput(outputId = "dic_ma_plot"), 
+                                          downloadButton("download2", "Download"),
+                                          verbatimTextOutput("sum_dich_ma")
+                                          
+                                          ),
                     
                                  
-                                                      
-                     downloadButton("download1", "Download")
+                                                       
+                     
                                  
                      
                                  
@@ -135,37 +156,50 @@ server<- function (input,output){
     
   
   
+  # Handling inputs
+  
   # Change the output style as reactive format 
   
   
-  # Handling inputs
+  temp_fit<-reactive({
+    single_dichotomous_fit(mData[,1],mData[,2],mData[,3],model_type = input$model,fit_type = input$fit_type, BMR = input$bmr_slide)
+  })
   
-  
-  
+  temp_fit2 <-reactive({
+    ma_dichotomous_fit(mData[,1],mData[,2],mData[,3],fit_type = input$fit_type2, BMR = input$bmr_slide2)
+  }) 
   
   # Output for the dichotomous single plot
   output$dic_sing_plot<-renderPlotly({
     
-    
-    temp_fit = single_dichotomous_fit(mData[,1],mData[,2],mData[,3],model_type = input$model,fit_type = input$fit_type, BMR = input$bmr_slide)
-    
     #For MCMC  
     if (input$fit_type=="mcmc"){
       # .plot.BMDdich_fit_MCMC(fit=temp_fit,fit_type=input$fit_type)
-      plot(temp_fit)
+      plot(temp_fit())
     }
     
     #For MCMC  
     else if (input$fit_type!="mcmc"){
       # .plot.BMDdich_fit_maximized(fit=temp_fit,fit_type=input$fit_type)
-      plot(temp_fit)
+      plot(temp_fit())
     }
     
   })
   
+  output$sum_dich_single<-renderPrint({
+    summary(temp_fit())
+  })
+  
+  
+  output$sum_dich_ma<-renderPrint({
+    summary(temp_fit2())
+  })
+  
+  
+  
   output$dic_ma_plot<-renderPlotly({
-    temp_fit = ma_dichotomous_fit(mData[,1],mData[,2],mData[,3],fit_type = input$fit_type2, BMR = input$bmr_slide2)
-    plot(temp_fit)
+    
+    plot(temp_fit2())
     
     # .plot.BMDdichotomous_MA(A=temp_fit)
   })
