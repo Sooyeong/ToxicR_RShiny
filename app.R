@@ -117,14 +117,16 @@ ui<-navbarPage(title = "Toxic R", selected="Dichotomous Fitting",
                      
                      tabsetPanel(id="tabs",
                                  tabPanel("Single Model", plotlyOutput(outputId = "dic_sing_plot"),
-                                          downloadButton("download1", "Download"),
-                                          verbatimTextOutput("sum_dich_single")
+                                          verbatimTextOutput("sum_dich_single"),
+                                          verbatimTextOutput("bmd_dich_single"),
+                                          downloadButton("download1", "Download")
                                           
                                           
                                           ),
                                  tabPanel("Model Average", plotlyOutput(outputId = "dic_ma_plot"), 
-                                          downloadButton("download2", "Download"),
-                                          verbatimTextOutput("sum_dich_ma")
+                                          verbatimTextOutput("sum_dich_ma"),
+                                          verbatimTextOutput("bmd_dich_ma"),
+                                          downloadButton("download2", "Download")
                                           
                                           ),
                     
@@ -191,10 +193,23 @@ server<- function (input,output){
   })
   
   
+  
+  
+  output$bmd_dich_single<-renderPrint({
+    temp_fit()$bmd
+  })
+  
+  
+  
+  
   output$sum_dich_ma<-renderPrint({
     summary(temp_fit2())
   })
   
+  
+  output$bmd_dich_ma<-renderPrint({
+    temp_fit2()$bmd
+  })
   
   
   output$dic_ma_plot<-renderPlotly({
