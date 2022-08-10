@@ -9,25 +9,27 @@
 library(shiny)
 library(ggplot2)
 
-datasets <- c("economics", "faithfuld", "seals")
-
-
+# Excel like interface... 
 ui <- fluidPage(
-  selectInput("dataset", "Dataset", choices = datasets),
-  verbatimTextOutput("summary"),
-  plotOutput("plot")
+  fileInput("upload", NULL, accept = c(".csv", ".tsv")),
+  numericInput("n", "Rows", value = 5, min = 1, step = 1),
+  tableOutput("head")
 )
 
 server <- function(input, output, session) {
-  dataset <- reactive({
-    get(input$dataset, "package:ggplot2")
+  data <- reactive({
+    req(input$upload)
+    
+    ext <- tools::file_ext(input$upload$name)
+    switch(ext,
+           csv = vroom::vroom(input$upload$datapath, delim = ","),
+           tsv = vroom::vroom(input$upload$datapath, delim = "\t"),
+           validate("Invalid file; Please upload a .csv or .tsv file")
+    )
   })
-  output$summary <- renderPrint({
-    summary(dataset())
+  
+  output$head <- renderTable({
+    head(data(), input$n)
   })
-  output$plot <- renderPlot({
-    plot(dataset())
-  }, res = 96)
 }
-
 shinyApp(ui, server)
