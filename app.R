@@ -35,7 +35,7 @@ library(DT)
 
 
 
-# example dataset
+# Dichotomous example dataset
 mData <- matrix(c(0, 2,50,
                   1, 2,50,
                   3, 10, 50,
@@ -51,10 +51,47 @@ N <- mData[,3]
 mData_df<-data.frame(mData)
 colnames(mData_df)<-c("D","Y","N")
 
-list(ls_dich_models)
+# Continous example dataset
+
+# cont_data           <- matrix(0,nrow=5,ncol=4)
+# colnames(cont_data) <- c("Dose","Mean","N","SD")
+# cont_data[,1] <- c(0,50,100,200,400)
+# cont_data[,2] <- c(5.26,5.76,6.13,8.24,9.23)
+# cont_data[,3] <- c(20,20,20,20,20)
+# cont_data[,4]<-  c(2.23,1.47,2.47,2.24,1.56)
+# Y <- cont_data[,2:4]
+
+
+# There are two cases / Summary dataset and origianl dataset are used
+
+
 # 
 # ####Testing Bed#####--> this part will be used for representing output in modeling page
-# res<-single_dichotomous_fit(mData[,1],mData[,2],mData[,3],model_type ="hill",fit_type = "mcmc", BMR = 0.1)
+ res<-single_dichotomous_fit(mData[,1],mData[,2],mData[,3],model_type ="hill",fit_type = "mcmc", BMR = 0.1)
+
+#  
+# t<-summary(res)
+# capture.output(t)
+# 
+
+ 
+ 
+# For this part how can we assign html object
+plot(res)
+
+text<-capture.output(summary(res))
+
+res$prior$prior$parameters
+ 
+
+text[length(text)+1]<-res$prior$prior$parameters[1]
+
+
+text  
+res$prior$prior$parameters
+
+ 
+res$options
 # 
 # # Multi fitting default model should be represented
 # res2<-ma_dichotomous_fit(mData[,1],mData[,2],mData[,3],model_list=priors,fit_type = "mcmc", BMR = 0.1)
@@ -204,6 +241,7 @@ ui<-navbarPage(title = "Toxic R", selected="Dichotomous Fitting",
                                                     min=0,max=1,value=0.1,step=0.1),
                                         actionButton("run_dich_single","Run" ,class="btn-lg btn-success")                       
                                         ),
+                       
                        conditionalPanel(condition="input.tabs =='Model Average'",
                                         helpText("Dichotomous Model Average"),
                                         
@@ -220,7 +258,6 @@ ui<-navbarPage(title = "Toxic R", selected="Dichotomous Fitting",
                                                            label="Models for fitting dichoutomous model average",
                                                            choices=ls_dich_models,
                                                            selected=ls_dich_models),
-                                        textOutput("test"),
                                         numericInput(inputId="bmr_slide2",
                                                     label="Choose a BMR level",
                                                     min=0,max=1,value=0.1),
@@ -230,10 +267,14 @@ ui<-navbarPage(title = "Toxic R", selected="Dichotomous Fitting",
                      mainPanel(
                        tabsetPanel(id="tabs",
                                    tabPanel("Input",
-                                            helpText("Innput example"),
                                             column(6,DT::dataTableOutput("input_data1"))
                                             ),
                                    tabPanel("Single Model", 
+                                            
+                                            
+                                            # 08/24/22 This part needs to be combined as single HTML output
+                                            uiOutput("dich_single_output"),
+                                            
                                             plotlyOutput(outputId = "dic_sing_plot"),
                                             plotOutput(outputId="dic_sing_plot_cdf"),
                                             verbatimTextOutput("sum_dich_single"),
@@ -241,6 +282,9 @@ ui<-navbarPage(title = "Toxic R", selected="Dichotomous Fitting",
                                             verbatimTextOutput("dich_single_parameters"),
                                             verbatimTextOutput("dich_single_covariance"),
                                             tableOutput("dich_single_gof"),
+                                            
+                                            
+                                            
                                             downloadButton("download1", "Download")
                                             ),
                                    tabPanel("Model Average", 
@@ -267,6 +311,11 @@ server<- function (input,output){
       dplyr::add_row(D = rep(0,10), Y = rep(0,10), N=rep(0,10))
   })
   
+  
+  
+  
+  
+  
   # Add button for dichotomous model
   observeEvent(input$add, {
     v$data<-v$data %>% dplyr::add_row(D=0,Y=0,N=0)
@@ -274,7 +323,9 @@ server<- function (input,output){
   
   # Delete button for dichotomous model
   observeEvent(input$delete, {
-    v$data<-v$data[-nrow(v$data),]
+    req(input$my_datatable_rows_selected)
+    v$data<-v$data[-input$my_datatable_rows_selected,]
+    
   })
   
   # Load example dataset
@@ -293,22 +344,25 @@ server<- function (input,output){
     )
   })
   
-  #Handling data process - 
+  #Update v$data
   observeEvent(input$upload1,{
-    output$input_data1<-DT::renderDataTable({
-      datatable(data(), extensions='Select',selection ="multiple", 
-                options = list(ordering = FALSE, searching = FALSE, pageLength = 10))
-      
     v$data<-data()  
+    # output$input_data1<-DT::renderDataTable({
+    #   datatable(data(), extensions='Select',selection ="multiple", 
+    #             options = list(ordering = FALSE, searching = FALSE, pageLength = 10))
+    #   
+    #v$data<-data()  
     })
-  })
+  
   
   
   
   output$my_datatable <- renderDT({
+    
     DT::datatable(v$data, editable = TRUE, options=list(pageLength=50, searching=FALSE))
+    
+    
   })
-  
   
   
   # Event reactive part is added
@@ -316,6 +370,14 @@ server<- function (input,output){
     isolate(v$data)
     single_dichotomous_fit(v$data$D,v$data$Y,v$data$N,model_type = input$model,fit_type = input$fit_type, BMR = input$bmr_slide)
   })
+  
+  
+  
+  
+  
+  
+  
+  
   
   # temp_fit<-reactive({
   #   req(input$run_dich_single)
@@ -341,10 +403,7 @@ server<- function (input,output){
                        fit_type = input$fit_type2, BMR = input$bmr_slide)
   })
   
-  output$test<-renderPrint({
-    input$dich_MA_input
-  })
-  
+
   # 
   # temp_fit2 <-reactive({
   #   ma_dichotomous_fit(mData[,1],mData[,2],mData[,3],fit_type = input$fit_type2, BMR = input$bmr_slide2)
@@ -380,11 +439,16 @@ server<- function (input,output){
     req(input$run_dich_single)
     isolate(temp_fit())
     temp_fit()$bmd
+    
   })
   
   # 08/09/22
   output$dich_single_parameters<-renderPrint({
     # Should we add models for the parameters?
+    #temp_fit()$parameters
+    
+    temp_fit()$prior$prior$parameters
+    
     temp_fit()$parameters
   })
   
@@ -397,13 +461,50 @@ server<- function (input,output){
   })
   
   
-  # res$parameters
-  # 
-  # res$covariance
   
+  ## Need to wrtie single html file
+  output$dich_single_output<-renderUI({
+    req(temp_fit())    
+    
+    
+    ## Need to convert all outputs as HTML files
+    
+    test<-renderPlot({
+      ggplot()+
+        geom_line(aes(x=temp_fit()$bmd_dist[,1], y=temp_fit()$bmd_dist[,2]))+
+        xlab("BMD")+
+        ylab("Probability")+
+        ggtitle("\nCDF of BMD")+
+        theme_classic()
+    })
+    
+    text<-capture.output(summary(temp_fit()))
+    
+    
+    for (i in 1:length(text)){
+      #Add spacing
+      text[i]<-paste0("<p>",text[i],"</p>")
+    }
+    
+    
+    # Plotly output how can I see the html object? 
+    
+    HTML(text)
+    
+    #    I need to write a render HTML output page for this section. 
   
+    
+    # Organize output-- Write a raw HTML output files here
+    # req(temp_fit())
+    # 
+    # fit<-summary(temp_fit())
+    # merged_output<-print(capture.output(fit),method="render")
+    # 
+    # HTML(merged_output)
+  })
   
-  
+
+  ################# Model Average Single Dichotomous part   
   output$sum_dich_ma<-renderPrint({
     summary(temp_fit2())
   })
@@ -423,4 +524,4 @@ server<- function (input,output){
 
 }
 
-shinyApp(ui=ui, server=server)
+shinyApp(ui=ui, server=server, options=list(display.mode = "showcase"))
