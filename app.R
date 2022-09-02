@@ -1,25 +1,11 @@
 ## Author: Sooyoeng Lim
 ## Purpose: R-Shiny App of ToxicR Package
-## Last Updated: 08/18/22
+## Last Updated: 09/01/22
 
-## Developer's Note- -
+## Developer's Note-
 
-
-## 1. Action button should be added to run model fitting - Updated 07/24/22
-## 2. For model average part- implement checkboxGroupInput() model selection  - Updated 07/24/22
-## 3. Provide example dataset - Updated
-## 4. Upload the discussion note with John
-
-## 5. Module part should be updated - Working in Progress
-
-
-## 6. User defined input layout - Updated 08/16/22
-## 7. Load it from cvs/xlsl file - Updated 08/17/22. This needs to be discussed with Matt how to determine the format of input dataset 
-
-
-## 08/09/22 - Add more information for single dichotmous cases --
-## Parameter, GOF, etc information/CDF is added;
-## User input/output
+# 1. Add Continuous section / provide example fitting 
+# 2. HTML layout - Single output.
 
 
 
@@ -43,13 +29,12 @@ mData <- matrix(c(0, 2,50,
                   32, 18,50,
                   33, 17,50),nrow=6,ncol=3,byrow=TRUE)
 
-D <- mData[,1]
-Y <- mData[,2]
-N <- mData[,3]
-
 # Change input as data.frame style
 mData_df<-data.frame(mData)
 colnames(mData_df)<-c("D","Y","N")
+
+# ####Testing Bed#####--> this part will be used for representing output in modeling page
+res<-single_dichotomous_fit(mData[,1],mData[,2],mData[,3],model_type ="hill",fit_type = "mcmc", BMR = 0.1)
 
 # Continous example dataset
 
@@ -62,12 +47,10 @@ colnames(mData_df)<-c("D","Y","N")
 # Y <- cont_data[,2:4]
 
 
-# There are two cases / Summary dataset and origianl dataset are used
+# There are two cases / Summary dataset and origianl dataset are used -Radio input
 
 
 # 
-# ####Testing Bed#####--> this part will be used for representing output in modeling page
- res<-single_dichotomous_fit(mData[,1],mData[,2],mData[,3],model_type ="hill",fit_type = "mcmc", BMR = 0.1)
 
 #  
 # t<-summary(res)
@@ -129,7 +112,8 @@ ls_cont_models<-ToxicR:::.continuous_models
 # ls_dich_models
 # 
 
-# Modified function for the ma_dich single fitting
+# Modified function for the ma_dich single fitting - Matt need to update this function
+
 .bayesian_prior_dich2<-function(model, degree = 2){
   dmodel = which(model == c("hill", "gamma", "logistic", "log-logistic", 
                             "log-probit", "multistage", "probit", "qlinear", "weibull"))
@@ -292,16 +276,69 @@ ui<-navbarPage(title = "Toxic R", selected="Dichotomous Fitting",
                                             verbatimTextOutput("sum_dich_ma"),
                                             verbatimTextOutput("bmd_dich_ma"),
                                             downloadButton("download2", "Download")
-                                            ),
+                                            )
                                   )
                               )
                             )
                        )
                     ),
-               
-               tabPanel("Continous Fitting")
-)
 
+               
+               
+               tabPanel("Continuous Fitting",
+                        fluidPage(
+                          sidebarLayout(
+                             sidebarPanel(
+                               conditionalPanel(condition="input.tabs_cont==`Input`",
+                                                helpText("Input"),
+                                                radioButtons("input_type_cont",selected="Summary",choices=c("Summary","Raw"),
+                                                             label="Select input data type"),
+                                                actionButton("add2",label = "Add Row")),
+                               conditionalPanel(condition="input.tabs_cont==`Single Model`",
+                                                helpText("Continuous Single Model"),
+                                                selectInput(inputId="model_cont", 
+                                                             label= "Choose a model type",
+                                                             choices=ls_cont_models, 
+                                                             selected = "hill"),
+                                                 selectInput(inputId="fit_type3", 
+                                                             label= "Choose a fit type",
+                                                             choices=fit_type, 
+                                                             selected = "mcmc"),
+                                                 numericInput(inputId="bmr_slide3",
+                                                              label="Choose a BMR level",
+                                                              min=0,max=1,value=0.1,step=0.1),
+                                                 actionButton("run_cont_single","Run" ,class="btn-lg btn-success")                       
+                                                 ),
+                                conditionalPanel(condition="input.tabs_cont==`Model Average`",
+                                                 helpText("Continuous Model Average"),
+                                                 selectInput(inputId="fit_type4",
+                                                             label= "Choose a fit type",
+                                                             choices=fit_type,
+                                                             selected = "mcmc"),
+                                                 checkboxGroupInput(inputId="cont_MA_input",
+                                                                    label="Models for fitting continuous model average",
+                                                                    choices=ls_cont_models,
+                                                                    selected=ls_cont_models),
+                                                 numericInput(inputId="bmr_slide4",
+                                                              label="Choose a BMR level",
+                                                              min=0,max=1,value=0.1),
+                                                 actionButton("run_cont_MA","Run",class="btn-lg btn-success")
+                                                 )
+                                         ),
+                                        
+                            mainPanel(
+                              tabsetPanel(id="tabs_cont",
+                                      tabPanel("Input"),
+                                      tabPanel("Single Model"),
+                                      tabPanel("Model Average")
+                                          )
+                              )
+                          
+                              )
+                            )
+               )
+)
+               
 
 
 server<- function (input,output){
