@@ -6,7 +6,12 @@
 
 # 1. Add Continuous section / provide example fitting 
 # 2. HTML layout - Single output.
+# 3. Need to write each model's Latex format 
+# 4. Tab Panel should be separate for each radio button...
+# 5. Write a Module/Functions
 
+# Listen radio button first-> Then condition it on two pages 
+# Summary dataset, Dose Resonse dataset two data types.
 
 
 
@@ -36,18 +41,56 @@ colnames(mData_df)<-c("D","Y","N")
 # ####Testing Bed#####--> this part will be used for representing output in modeling page
 res<-single_dichotomous_fit(mData[,1],mData[,2],mData[,3],model_type ="hill",fit_type = "mcmc", BMR = 0.1)
 
-# Continous example dataset
 
-# cont_data           <- matrix(0,nrow=5,ncol=4)
-# colnames(cont_data) <- c("Dose","Mean","N","SD")
-# cont_data[,1] <- c(0,50,100,200,400)
-# cont_data[,2] <- c(5.26,5.76,6.13,8.24,9.23)
-# cont_data[,3] <- c(20,20,20,20,20)
-# cont_data[,4]<-  c(2.23,1.47,2.47,2.24,1.56)
-# Y <- cont_data[,2:4]
 
+
+
+## Start from data inputs 
+# Continuous example dataset
+
+
+# -- Summarized fit example 
+cont_data           <- matrix(0,nrow=5,ncol=4)
+colnames(cont_data) <- c("D","Mean","N","SD")
+cont_data[,1] <- c(0,50,100,200,400)
+cont_data[,2] <- c(5.26,5.76,6.13,8.24,9.23)
+cont_data[,3] <- c(20,20,20,20,20)
+cont_data[,4]<-  c(2.23,1.47,2.47,2.24,1.56)
+
+
+cont_summary_example<-data.frame(cont_data)
+
+
+cont_summary_example
+Y <- cont_data[,2:4]
+
+hill_fit <- single_continuous_fit(cont_data[,"D"],Y,
+                                  model_type="hill", fit_type="mcmc")
+
+
+# -- Dose - Response 
 
 # There are two cases / Summary dataset and origianl dataset are used -Radio input
+
+# Dose response example for 
+doses <- cbind(c(0,25,50,100,200))
+y <- cbind(c(6,5.2,2.4,1.1,0.75))
+           
+
+
+cont_dr_example           <- matrix(0,nrow=5,ncol=2)
+colnames(cont_dr_example)<-c("D","Y")
+
+cont_dr_example[,1]=doses
+cont_dr_example[,2]=y
+cont_dr_example<-data.frame(cont_dr_example)
+
+# 
+# model <- ma_continuous_fit(doses,y,
+#                            fit_type = "mcmc",BMD_TYPE = 'sd',BMR = 1)
+# 
+
+
 
 
 # 
@@ -187,6 +230,10 @@ ls_cont_models<-ToxicR:::.continuous_models
 # 
 
 
+
+
+
+
 # 
 # 
 # ToxicR:::.bayesian_prior_dich(list(ls_dich_models))
@@ -258,7 +305,6 @@ ui<-navbarPage(title = "Toxic R", selected="Dichotomous Fitting",
                                             
                                             # 08/24/22 This part needs to be combined as single HTML output
                                             uiOutput("dich_single_output"),
-                                            
                                             plotlyOutput(outputId = "dic_sing_plot"),
                                             plotOutput(outputId="dic_sing_plot_cdf"),
                                             verbatimTextOutput("sum_dich_single"),
@@ -291,9 +337,9 @@ ui<-navbarPage(title = "Toxic R", selected="Dichotomous Fitting",
                              sidebarPanel(
                                conditionalPanel(condition="input.tabs_cont==`Input`",
                                                 helpText("Input"),
-                                                radioButtons("input_type_cont",selected="Summary",choices=c("Summary","Raw"),
+                                                radioButtons("input_type_cont",selected="Summary Data",choices=c("Summary Data","Dose Response Data"),
                                                              label="Select input data type"),
-                                                actionButton("add2",label = "Add Row")),
+                                                ),
                                conditionalPanel(condition="input.tabs_cont==`Single Model`",
                                                 helpText("Continuous Single Model"),
                                                 selectInput(inputId="model_cont", 
@@ -328,8 +374,16 @@ ui<-navbarPage(title = "Toxic R", selected="Dichotomous Fitting",
                                         
                             mainPanel(
                               tabsetPanel(id="tabs_cont",
-                                      tabPanel("Input"),
-                                      tabPanel("Single Model"),
+                                      tabPanel("Input",
+                                               DTOutput("my_datatable2"),
+                                               actionButton("add_cont",label = "Add Row"),
+                                               actionButton("delete_cont",label = "Delete Row"),
+                                               actionButton("example_cont",label = "Load Example Dataset"),
+                                               fileInput("upload2", "Upload a file (.csv format)",accept=".csv"))
+                                      ,
+                                      tabPanel("Single Model",
+                                               
+                                               ),
                                       tabPanel("Model Average")
                                           )
                               )
@@ -342,15 +396,79 @@ ui<-navbarPage(title = "Toxic R", selected="Dichotomous Fitting",
 
 
 server<- function (input,output){
-  # Empty dataframe for dichotomous model
-  v <- reactiveValues(data = { 
-    data.frame(D = numeric(0),Y = numeric(0), N=numeric(0)) %>% 
-      dplyr::add_row(D = rep(0,10), Y = rep(0,10), N=rep(0,10))
+  
+  #### Input handling
+  # Empty data,frame for continuous model
+  # Reactive condition only if 
+
+  
+  v_cont_dose_resp<-reactiveValues(data={
+        data.frame(D = numeric(0),Y = numeric(0)) %>% 
+          dplyr::add_row(D = rep(0,10), Y= rep(0,10))}
+  )
+  
+  v_cont_summary<-reactiveValues(data={
+        data.frame(D = numeric(0),Mean = numeric(0), N=numeric(0), SD=numeric(0)) %>% 
+          dplyr::add_row(D = rep(0,10), Mean = rep(0,10), N=rep(0,10), SD=rep(0,10))}
+  )
+  
+  
+  
+
+# Two different condition how can I divide the case? 
+  output$my_datatable2 <- renderDT({
+    
+    if (input$input_type_cont=="Summary Data"){
+      
+      DT::datatable(v_cont_summary$data, editable = TRUE, options=list(pageLength=50, searching=FALSE))
+    }
+    
+    else {
+      DT::datatable(v_cont_dose_resp$data, editable = TRUE, options=list(pageLength=50, searching=FALSE))
+    }
+    
+    })
+  
+  # Add button for dichotomous model
+  observeEvent(input$add_cont, {
+    if(input$input_type_cont=="Summary Data"){
+      v_cont_summary$data<-v_cont_summary$data %>% dplyr::add_row(D=0,Mean=0,N=0,SD=0)
+    }
+    else {
+      v_cont_dose_resp$data<-v_cont_dose_resp$data %>% dplyr::add_row(D=0,Y=0)
+    }
+  })
+  
+  observeEvent(input$delete_cont, {
+    if(input$input_type_cont=="Summary Data"){
+      req(input$my_datatable2_rows_selected)
+      v_cont_summary$data<-v_cont_summary$data[-input$my_datatable2_rows_selected,]
+    }
+    else {
+      req(input$my_datatable2_rows_selected)
+      v_cont_dose_resp$data<-v_cont_dose_resp$data[-input$my_datatable2_rows_selected,]
+    }
   })
   
   
   
   
+  observeEvent(input$example_cont,{
+    if(input$input_type_cont=="Summary Data"){
+      v_cont_summary$data<-cont_summary_example
+    }
+    else {
+      v_cont_dose_resp$data<-cont_dr_example
+    }
+      
+  })
+  
+  
+  # Empty dataframe for dichotomous model
+  v <- reactiveValues(data = { 
+    data.frame(D = numeric(0),Y = numeric(0), N=numeric(0)) %>% 
+      dplyr::add_row(D = rep(0,10), Y = rep(0,10), N=rep(0,10))
+  })
   
   
   # Add button for dichotomous model
@@ -384,22 +502,68 @@ server<- function (input,output){
   #Update v$data
   observeEvent(input$upload1,{
     v$data<-data()  
-    # output$input_data1<-DT::renderDataTable({
-    #   datatable(data(), extensions='Select',selection ="multiple", 
-    #             options = list(ordering = FALSE, searching = FALSE, pageLength = 10))
-    #   
-    #v$data<-data()  
     })
   
   
-  
-  
+
   output$my_datatable <- renderDT({
-    
     DT::datatable(v$data, editable = TRUE, options=list(pageLength=50, searching=FALSE))
+  })
+  
+  temp_fit_cont_single<-eventReactive(input$run_cont_single,{
+    if(input$input_type_cont=="Summary Data"){
+      isolate(v_cont_summary)
+      single_continuous_fit(v_cont_summary$data$D,v_cont_summary$data[,2:4],
+                            model_type=input$model_cont,
+                            fit_type=input$fit_type_cont,
+                            BMR=input$bmr_slide3)
+    }
+    else {
+      isolate(v_cont_dose_resp)
+      single_continuous_fit(v_cont_dose_resp$dataD,v_cont_dose_resp$data$Y,
+                            model_type=input$model_cont,
+                            fit_type=input$fit_type_cont,
+                            BMR=input$bmr_slide3)
+    }
+  })
+  
+  temp_fit_cont_ma<-eventReactive(input$run_cont_MA,{
+    
+    priors<-list()
+    for (i in 1:length(input$cont_MA_input)){
+      # This function still have the problem   
+      priors[[i]]=bayesian_prior_continuous_default(input$cont_MA_input[i])
+    }
+    
+    
+    #### 09/03 9:13AM -- Note
+    
+    if(input$input_type_cont=="Summary Data"){
+      ## model fittings
+      ma_dichotomous_fit(v$data$D,v$data$Y,v$data$N,model_list = priors,
+                         fit_type = input$fit_type2, BMR = input$bmr_slide4)
+      
+      
+      
+      isolate(v_cont_summary)
+      single_continuous_fit(v_cont_summary$data$D,v_cont_summary$data[,2:4],
+                            model_type=input$model_cont,
+                            fit_type=input$fit_type_cont,
+                            BMR=input$bmr_slide3)
+    }
+    else {
+      isolate(v_cont_dose_resp)
+      single_continuous_fit(v_cont_dose_resp$dataD,v_cont_dose_resp$data$Y,
+                            model_type=input$model_cont,
+                            fit_type=input$fit_type_cont,
+                            BMR=input$bmr_slide3)
+    }
+    
+    
     
     
   })
+  
   
   
   # Event reactive part is added
@@ -407,25 +571,6 @@ server<- function (input,output){
     isolate(v$data)
     single_dichotomous_fit(v$data$D,v$data$Y,v$data$N,model_type = input$model,fit_type = input$fit_type, BMR = input$bmr_slide)
   })
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  # temp_fit<-reactive({
-  #   req(input$run_dich_single)
-  #   
-  #   single_dichotomous_fit(v$data$D,v$data$Y,v$data$N,model_type = input$model,fit_type = input$fit_type, BMR = input$bmr_slide)
-  # })
-  
-  
-  
-  
-  
   
   temp_fit2<-eventReactive(input$run_dich_MA,{
     isolate(v$data)
@@ -435,16 +580,9 @@ server<- function (input,output){
       # This function still have the problem   
       priors[[i]]=.bayesian_prior_dich2(input$dich_MA_input[i])
     }
-    
     ma_dichotomous_fit(v$data$D,v$data$Y,v$data$N,model_list = priors,
                        fit_type = input$fit_type2, BMR = input$bmr_slide)
   })
-  
-
-  # 
-  # temp_fit2 <-reactive({
-  #   ma_dichotomous_fit(mData[,1],mData[,2],mData[,3],fit_type = input$fit_type2, BMR = input$bmr_slide2)
-  # }) 
   
   # Output for the dichotomous single plot
   output$dic_sing_plot<-renderPlotly({
@@ -476,7 +614,6 @@ server<- function (input,output){
     req(input$run_dich_single)
     isolate(temp_fit())
     temp_fit()$bmd
-    
   })
   
   # 08/09/22
@@ -502,8 +639,6 @@ server<- function (input,output){
   ## Need to wrtie single html file
   output$dich_single_output<-renderUI({
     req(temp_fit())    
-    
-    
     ## Need to convert all outputs as HTML files
     
     test<-renderPlot({
@@ -529,8 +664,6 @@ server<- function (input,output){
     HTML(text)
     
     #    I need to write a render HTML output page for this section. 
-  
-    
     # Organize output-- Write a raw HTML output files here
     # req(temp_fit())
     # 
@@ -546,7 +679,6 @@ server<- function (input,output){
     summary(temp_fit2())
   })
   
-  
   output$bmd_dich_ma<-renderPrint({
     temp_fit2()$bmd
   })
@@ -556,9 +688,7 @@ server<- function (input,output){
     plot(temp_fit2())
   })
   
-  
-  
 
 }
 
-shinyApp(ui=ui, server=server, options=list(display.mode = "showcase"))
+shinyApp(ui=ui, server=server)
