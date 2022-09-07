@@ -9,10 +9,12 @@
 # 3. Need to write each model's Latex format 
 # 4. Tab Panel should be separate for each radio button...
 # 5. Write a Module/Functions
+# 6. Variable names and structures should be organized 
 
-# Listen radio button first-> Then condition it on two pages 
-# Summary dataset, Dose Resonse dataset two data types.
 
+
+
+# 09/03/22 -- Fitting buttons for continuous cases 
 
 
 # Load required libraries 
@@ -237,8 +239,6 @@ ls_cont_models<-ToxicR:::.continuous_models
 # 
 # 
 # ToxicR:::.bayesian_prior_dich(list(ls_dich_models))
-
-
 # MLE is restored from ToxicR App 
 fit_type<-list("mcmc", "laplace","mle")
 
@@ -353,8 +353,8 @@ ui<-navbarPage(title = "Toxic R", selected="Dichotomous Fitting",
                                                  numericInput(inputId="bmr_slide3",
                                                               label="Choose a BMR level",
                                                               min=0,max=1,value=0.1,step=0.1),
-                                                 actionButton("run_cont_single","Run" ,class="btn-lg btn-success")                       
-                                                 ),
+                                                 actionButton("run_cont_single","Run",class="btn-lg btn-success")
+                                                ),
                                 conditionalPanel(condition="input.tabs_cont==`Model Average`",
                                                  helpText("Continuous Model Average"),
                                                  selectInput(inputId="fit_type4",
@@ -369,7 +369,7 @@ ui<-navbarPage(title = "Toxic R", selected="Dichotomous Fitting",
                                                               label="Choose a BMR level",
                                                               min=0,max=1,value=0.1),
                                                  actionButton("run_cont_MA","Run",class="btn-lg btn-success")
-                                                 )
+                                                )
                                          ),
                                         
                             mainPanel(
@@ -463,7 +463,6 @@ server<- function (input,output){
       
   })
   
-  
   # Empty dataframe for dichotomous model
   v <- reactiveValues(data = { 
     data.frame(D = numeric(0),Y = numeric(0), N=numeric(0)) %>% 
@@ -510,58 +509,51 @@ server<- function (input,output){
     DT::datatable(v$data, editable = TRUE, options=list(pageLength=50, searching=FALSE))
   })
   
+
+  ## Fitting results -- 
   temp_fit_cont_single<-eventReactive(input$run_cont_single,{
-    if(input$input_type_cont=="Summary Data"){
       isolate(v_cont_summary)
       single_continuous_fit(v_cont_summary$data$D,v_cont_summary$data[,2:4],
                             model_type=input$model_cont,
-                            fit_type=input$fit_type_cont,
+                            fit_type=input$fit_type3,
                             BMR=input$bmr_slide3)
-    }
-    else {
-      isolate(v_cont_dose_resp)
-      single_continuous_fit(v_cont_dose_resp$dataD,v_cont_dose_resp$data$Y,
-                            model_type=input$model_cont,
-                            fit_type=input$fit_type_cont,
-                            BMR=input$bmr_slide3)
-    }
+    # }
+    # else {
+    #   isolate(v_cont_dose_resp)
+    #   single_continuous_fit(v_cont_dose_resp$dataD,v_cont_dose_resp$data$Y,
+    #                         model_type=input$model_cont,
+    #                         fit_type=input$fit_type3,
+    #                         BMR=input$bmr_slide3)
+    # }
   })
   
   temp_fit_cont_ma<-eventReactive(input$run_cont_MA,{
-    
     priors<-list()
     for (i in 1:length(input$cont_MA_input)){
       # This function still have the problem   
       priors[[i]]=bayesian_prior_continuous_default(input$cont_MA_input[i])
     }
     
-    
     #### 09/03 9:13AM -- Note
-    
     if(input$input_type_cont=="Summary Data"){
-      ## model fittings
-      ma_dichotomous_fit(v$data$D,v$data$Y,v$data$N,model_list = priors,
-                         fit_type = input$fit_type2, BMR = input$bmr_slide4)
-      
-      
-      
       isolate(v_cont_summary)
-      single_continuous_fit(v_cont_summary$data$D,v_cont_summary$data[,2:4],
-                            model_type=input$model_cont,
-                            fit_type=input$fit_type_cont,
-                            BMR=input$bmr_slide3)
-    }
+      ma_continuous_fit(v_cont_summary$data$D,v_cont_summary$data[,2:4]
+                         ,model_list = priors,
+                         fit_type = input$fit_type4, 
+                         BMR = input$bmr_slide4)
+      }
     else {
       isolate(v_cont_dose_resp)
-      single_continuous_fit(v_cont_dose_resp$dataD,v_cont_dose_resp$data$Y,
-                            model_type=input$model_cont,
-                            fit_type=input$fit_type_cont,
-                            BMR=input$bmr_slide3)
+      ma_continuous_fit(v_cont_dose_resp$data$D,v_cont_dose_resp$Y
+                        ,model_list = priors,
+                        fit_type = input$fit_type4, 
+                        BMR = input$bmr_slide4)
     }
-    
-    
-    
-    
+  })
+  
+  output$dic_sing_plot<-renderPlotly({
+    req(input$run_cont_single)
+    plot(temp_fit_cont_single())
   })
   
   
