@@ -1,6 +1,6 @@
 ## Author: Sooyoeng Lim
 ## Purpose: R-Shiny App of ToxicR Package
-## Last Updated: 09/01/22
+## Last Updated: 09/07/22
 
 ## Developer's Note-
 
@@ -10,11 +10,10 @@
 # 4. Tab Panel should be separate for each radio button...
 # 5. Write a Module/Functions
 # 6. Variable names and structures should be organized 
+# 7. Download part should capture the snapshot or dataset 
 
-
-
-
-# 09/03/22 -- Fitting buttons for continuous cases 
+# Graphics function needs to be fixed - 
+# X Axis around 0 should be adjusted automatically 
 
 
 # Load required libraries 
@@ -24,6 +23,10 @@ library(ggplot2)
 library(plotly)
 library(scales)
 library(DT)
+
+
+
+
 
 
 
@@ -75,17 +78,26 @@ hill_fit <- single_continuous_fit(cont_data[,"D"],Y,
 # There are two cases / Summary dataset and origianl dataset are used -Radio input
 
 # Dose response example for 
-doses <- cbind(c(0,25,50,100,200))
-y <- cbind(c(6,5.2,2.4,1.1,0.75))
-           
 
 
-cont_dr_example           <- matrix(0,nrow=5,ncol=2)
+hill_m <- function(doses){
+  returnV <-  481  -250.3*doses^1.3/(40^1.3 + doses^1.3)
+  return(returnV)
+}
+doses <- rep(c(0,6.25,12.5,25,50,100),each=10)
+mean <- hill_m(doses)
+
+y <- rnorm(length(mean),mean,20.14)
+
+
+
+cont_dr_example           <- matrix(0,nrow=length(doses),ncol=2)
 colnames(cont_dr_example)<-c("D","Y")
 
 cont_dr_example[,1]=doses
 cont_dr_example[,2]=y
 cont_dr_example<-data.frame(cont_dr_example)
+
 
 # 
 # model <- ma_continuous_fit(doses,y,
@@ -301,8 +313,6 @@ ui<-navbarPage(title = "Toxic R", selected="Dichotomous Fitting",
                                             column(6,DT::dataTableOutput("input_data1"))
                                             ),
                                    tabPanel("Single Model", 
-                                            
-                                            
                                             # 08/24/22 This part needs to be combined as single HTML output
                                             uiOutput("dich_single_output"),
                                             plotlyOutput(outputId = "dic_sing_plot"),
@@ -312,9 +322,6 @@ ui<-navbarPage(title = "Toxic R", selected="Dichotomous Fitting",
                                             verbatimTextOutput("dich_single_parameters"),
                                             verbatimTextOutput("dich_single_covariance"),
                                             tableOutput("dich_single_gof"),
-                                            
-                                            
-                                            
                                             downloadButton("download1", "Download")
                                             ),
                                    tabPanel("Model Average", 
@@ -336,7 +343,7 @@ ui<-navbarPage(title = "Toxic R", selected="Dichotomous Fitting",
                           sidebarLayout(
                              sidebarPanel(
                                conditionalPanel(condition="input.tabs_cont==`Input`",
-                                                helpText("Input"),
+                                                helpText("Inputs"),
                                                 radioButtons("input_type_cont",selected="Summary Data",choices=c("Summary Data","Dose Response Data"),
                                                              label="Select input data type"),
                                                 ),
@@ -353,7 +360,7 @@ ui<-navbarPage(title = "Toxic R", selected="Dichotomous Fitting",
                                                  numericInput(inputId="bmr_slide3",
                                                               label="Choose a BMR level",
                                                               min=0,max=1,value=0.1,step=0.1),
-                                                 actionButton("run_cont_single","Run",class="btn-lg btn-success")
+                                                 actionButton("run_cont_single","Run",class="btn-lg btn-success"),
                                                 ),
                                 conditionalPanel(condition="input.tabs_cont==`Model Average`",
                                                  helpText("Continuous Model Average"),
@@ -361,10 +368,10 @@ ui<-navbarPage(title = "Toxic R", selected="Dichotomous Fitting",
                                                              label= "Choose a fit type",
                                                              choices=fit_type,
                                                              selected = "mcmc"),
-                                                 checkboxGroupInput(inputId="cont_MA_input",
-                                                                    label="Models for fitting continuous model average",
-                                                                    choices=ls_cont_models,
-                                                                    selected=ls_cont_models),
+                                                 # checkboxGroupInput(inputId="cont_MA_input",
+                                                 #                    label="Models for fitting continuous model average",
+                                                 #                    choices=ls_cont_models,
+                                                 #                    selected=ls_cont_models),
                                                  numericInput(inputId="bmr_slide4",
                                                               label="Choose a BMR level",
                                                               min=0,max=1,value=0.1),
@@ -382,9 +389,12 @@ ui<-navbarPage(title = "Toxic R", selected="Dichotomous Fitting",
                                                fileInput("upload2", "Upload a file (.csv format)",accept=".csv"))
                                       ,
                                       tabPanel("Single Model",
-                                               
+                                               verbatimTextOutput("sum_cont_single"),
+                                               plotlyOutput(outputId = "plot_cont_single"),
                                                ),
-                                      tabPanel("Model Average")
+                                      tabPanel("Model Average",
+                                               verbatimTextOutput("sum_cont_ma"),
+                                               plotlyOutput(outputId = "plot_cont_ma"),
                                           )
                               )
                           
@@ -393,15 +403,12 @@ ui<-navbarPage(title = "Toxic R", selected="Dichotomous Fitting",
                )
 )
                
-
+)
 
 server<- function (input,output){
   
-  #### Input handling
-  # Empty data,frame for continuous model
-  # Reactive condition only if 
-
-  
+#### Input handling
+  ## Empty dataset for continuous cases
   v_cont_dose_resp<-reactiveValues(data={
         data.frame(D = numeric(0),Y = numeric(0)) %>% 
           dplyr::add_row(D = rep(0,10), Y= rep(0,10))}
@@ -411,64 +418,16 @@ server<- function (input,output){
         data.frame(D = numeric(0),Mean = numeric(0), N=numeric(0), SD=numeric(0)) %>% 
           dplyr::add_row(D = rep(0,10), Mean = rep(0,10), N=rep(0,10), SD=rep(0,10))}
   )
-  
-  
-  
 
-# Two different condition how can I divide the case? 
-  output$my_datatable2 <- renderDT({
-    
-    if (input$input_type_cont=="Summary Data"){
-      
-      DT::datatable(v_cont_summary$data, editable = TRUE, options=list(pageLength=50, searching=FALSE))
-    }
-    
-    else {
-      DT::datatable(v_cont_dose_resp$data, editable = TRUE, options=list(pageLength=50, searching=FALSE))
-    }
-    
-    })
-  
-  # Add button for dichotomous model
-  observeEvent(input$add_cont, {
-    if(input$input_type_cont=="Summary Data"){
-      v_cont_summary$data<-v_cont_summary$data %>% dplyr::add_row(D=0,Mean=0,N=0,SD=0)
-    }
-    else {
-      v_cont_dose_resp$data<-v_cont_dose_resp$data %>% dplyr::add_row(D=0,Y=0)
-    }
-  })
-  
-  observeEvent(input$delete_cont, {
-    if(input$input_type_cont=="Summary Data"){
-      req(input$my_datatable2_rows_selected)
-      v_cont_summary$data<-v_cont_summary$data[-input$my_datatable2_rows_selected,]
-    }
-    else {
-      req(input$my_datatable2_rows_selected)
-      v_cont_dose_resp$data<-v_cont_dose_resp$data[-input$my_datatable2_rows_selected,]
-    }
-  })
-  
-  
-  
-  
-  observeEvent(input$example_cont,{
-    if(input$input_type_cont=="Summary Data"){
-      v_cont_summary$data<-cont_summary_example
-    }
-    else {
-      v_cont_dose_resp$data<-cont_dr_example
-    }
-      
-  })
-  
-  # Empty dataframe for dichotomous model
+  ## Empty dataset for dichotomous case
   v <- reactiveValues(data = { 
     data.frame(D = numeric(0),Y = numeric(0), N=numeric(0)) %>% 
       dplyr::add_row(D = rep(0,10), Y = rep(0,10), N=rep(0,10))
   })
   
+  
+  
+  ## Buttons   
   
   # Add button for dichotomous model
   observeEvent(input$add, {
@@ -482,14 +441,14 @@ server<- function (input,output){
     
   })
   
-  # Load example dataset
+  # Load example dataset for dichotomous model
   observeEvent(input$example, {
     v$data<-data.frame(mData_df)
   })
   
   
-  ## Upload input handling
-  data <- reactive({
+  ## Upload input handling for dichotomous model
+  data_dich <- reactive({
     req(input$upload1)
     ext <- tools::file_ext(input$upload1$name)
     switch(ext,
@@ -500,94 +459,179 @@ server<- function (input,output){
   
   #Update v$data
   observeEvent(input$upload1,{
-    v$data<-data()  
-    })
-  
+    v$data<-data_dich()  
+  })
   
 
+  # Add button for continuous model
+  observeEvent(input$add_cont, {
+    if(input$input_type_cont=="Summary Data"){
+      v_cont_summary$data<-v_cont_summary$data %>% dplyr::add_row(D=0,Mean=0,N=0,SD=0)
+    }
+    else {
+      v_cont_dose_resp$data<-v_cont_dose_resp$data %>% dplyr::add_row(D=0,Y=0)
+    }
+  })
+  
+  # Delete button for continuous model
+  observeEvent(input$delete_cont, {
+    if(input$input_type_cont=="Summary Data"){
+      req(input$my_datatable2_rows_selected)
+      v_cont_summary$data<-v_cont_summary$data[-input$my_datatable2_rows_selected,]
+    }
+    else {
+      req(input$my_datatable2_rows_selected)
+      v_cont_dose_resp$data<-v_cont_dose_resp$data[-input$my_datatable2_rows_selected,]
+    }
+  })
+  
+  # Load example dataset for dichotomous model
+  observeEvent(input$example_cont,{
+    if(input$input_type_cont=="Summary Data"){
+      v_cont_summary$data<-cont_summary_example
+    }
+    else {
+      v_cont_dose_resp$data<-cont_dr_example
+    }
+    
+  })
+  
+  # Upload input should be added here 
+  
+  # 09/07/22 - Marked
+  
+  # 
+  
+  ## Render data dichotomous case
   output$my_datatable <- renderDT({
     DT::datatable(v$data, editable = TRUE, options=list(pageLength=50, searching=FALSE))
   })
   
-
-  ## Fitting results -- 
-  temp_fit_cont_single<-eventReactive(input$run_cont_single,{
-      isolate(v_cont_summary)
-      single_continuous_fit(v_cont_summary$data$D,v_cont_summary$data[,2:4],
-                            model_type=input$model_cont,
-                            fit_type=input$fit_type3,
-                            BMR=input$bmr_slide3)
-    # }
-    # else {
-    #   isolate(v_cont_dose_resp)
-    #   single_continuous_fit(v_cont_dose_resp$dataD,v_cont_dose_resp$data$Y,
-    #                         model_type=input$model_cont,
-    #                         fit_type=input$fit_type3,
-    #                         BMR=input$bmr_slide3)
-    # }
-  })
-  
-  temp_fit_cont_ma<-eventReactive(input$run_cont_MA,{
-    priors<-list()
-    for (i in 1:length(input$cont_MA_input)){
-      # This function still have the problem   
-      priors[[i]]=bayesian_prior_continuous_default(input$cont_MA_input[i])
+  ## Render data continuous case
+  output$my_datatable2 <- renderDT({
+    if (input$input_type_cont=="Summary Data"){
+      DT::datatable(v_cont_summary$data, editable = TRUE, options=list(pageLength=50, searching=FALSE))
     }
-    
-    #### 09/03 9:13AM -- Note
-    if(input$input_type_cont=="Summary Data"){
-      isolate(v_cont_summary)
-      ma_continuous_fit(v_cont_summary$data$D,v_cont_summary$data[,2:4]
-                         ,model_list = priors,
-                         fit_type = input$fit_type4, 
-                         BMR = input$bmr_slide4)
-      }
     else {
-      isolate(v_cont_dose_resp)
-      ma_continuous_fit(v_cont_dose_resp$data$D,v_cont_dose_resp$Y
-                        ,model_list = priors,
-                        fit_type = input$fit_type4, 
-                        BMR = input$bmr_slide4)
+      DT::datatable(v_cont_dose_resp$data, editable = TRUE, options=list(pageLength=50, searching=FALSE))
     }
-  })
-  
-  output$dic_sing_plot<-renderPlotly({
-    req(input$run_cont_single)
-    plot(temp_fit_cont_single())
-  })
+    })
   
   
   
-  # Event reactive part is added
-  temp_fit<-eventReactive(input$run_dich_single,{
+  
+  
+  ## Fitting results 
+
+  fit_dich_single<-eventReactive(input$run_dich_single,{
     isolate(v$data)
     single_dichotomous_fit(v$data$D,v$data$Y,v$data$N,model_type = input$model,fit_type = input$fit_type, BMR = input$bmr_slide)
   })
   
-  temp_fit2<-eventReactive(input$run_dich_MA,{
+  fit_dich_ma<-eventReactive(input$run_dich_MA,{
     isolate(v$data)
-    ## model fittings
     priors<-list()
     for (i in 1:length(input$dich_MA_input)){
-      # This function still have the problem   
+      # This function still have the problem   -> Asked Matt to update it 
       priors[[i]]=.bayesian_prior_dich2(input$dich_MA_input[i])
     }
     ma_dichotomous_fit(v$data$D,v$data$Y,v$data$N,model_list = priors,
                        fit_type = input$fit_type2, BMR = input$bmr_slide)
   })
   
+
+  
+  
+  fit_cont_single<-eventReactive(input$run_cont_single,{
+    if(input$input_type_cont=="Summary Data"){
+      isolate(v_cont_summary)
+      single_continuous_fit(v_cont_summary$data$D,v_cont_summary$data[,2:4],
+                            model_type=input$model_cont,
+                            fit_type=input$fit_type3,
+                            BMR=input$bmr_slide3)
+      
+    }
+    else {
+      isolate(v_cont_dose_resp)
+      single_continuous_fit(v_cont_dose_resp$data$D,v_cont_dose_resp$data$Y,
+                            model_type=input$model_cont,
+                            fit_type=input$fit_type3,
+                            BMR=input$bmr_slide3)
+    }
+  }
+  )
+    # 
+    # single_continuous_fit(v_cont_summary$data$D,v_cont_summary$data[,2:4],
+    #                       model_type=input$model_cont,
+    #                       fit_type=input$fit_type3,
+    #                       BMR=input$bmr_slide3)
+    # 
+    # 
+    
+    
+    
+  
+  fit_cont_ma<-eventReactive(input$run_cont_MA,{
+    # priors<-list()
+    # for (i in 1:length(input$cont_MA_input)){
+    #   # This function still have the problem   
+    #   priors[[i]]=ToxicR:::.bayesian_prior_continuous_default(input$cont_MA_input[i])
+    # }
+    # 
+    # 
+    ## Distribution list should be added - let's do it default option currently 
+    #### 09/03 9:13AM -- Note
+    if(input$input_type_cont=="Summary Data"){
+      isolate(v_cont_summary)
+      ma_continuous_fit(v_cont_summary$data$D,v_cont_summary$data[,2:4],
+                        #,model_list = priors,
+                        fit_type = input$fit_type4, 
+                        BMR = input$bmr_slide4)
+    }
+    else {
+      isolate(v_cont_dose_resp)
+      ma_continuous_fit(v_cont_dose_resp$data$D,v_cont_dose_resp$data$Y,
+                        #,model_list = priors,
+                        fit_type = input$fit_type4, 
+                        BMR = input$bmr_slide4)
+    }
+    }
+  )
+  
+  
+  
+  
+  
+  
+  output$plot_cont_single<-renderPlotly({
+    req(input$run_cont_single)
+    plot(fit_cont_single())
+  })
+  
+  
+  
+  output$plot_cont_ma<-renderPlotly({
+    req(input$run_cont_MA)
+    plot(fit_cont_ma())
+  })
+  
+  
+  
+  
+
+  
   # Output for the dichotomous single plot
   output$dic_sing_plot<-renderPlotly({
     req(input$run_dich_single)
     isolate(v$data)
-    plot(temp_fit())
+    plot(fit_dich_single())
   })
   
   output$dic_sing_plot_cdf<-renderPlot({
     req(input$run_dich_single)
-    isolate(temp_fit())
+    isolate(fit_dich_single())
       ggplot()+
-        geom_line(aes(x=temp_fit()$bmd_dist[,1], y=temp_fit()$bmd_dist[,2]))+
+        geom_line(aes(x=fit_dich_single()$bmd_dist[,1], y=fit_dich_single()$bmd_dist[,2]))+
         xlab("BMD")+
         ylab("Probability")+
         ggtitle("\nCDF of BMD")+
@@ -597,52 +641,46 @@ server<- function (input,output){
   
   output$sum_dich_single<-renderPrint({
     req(input$run_dich_single)
-    isolate(temp_fit())
-    summary(temp_fit())
+    isolate(fit_dich_single())
+    summary(fit_dich_single())
 
   })
   
   output$bmd_dich_single<-renderPrint({
     req(input$run_dich_single)
-    isolate(temp_fit())
-    temp_fit()$bmd
+    isolate(fit_dich_single())
+    fit_dich_single()$bmd
   })
-  
-  # 08/09/22
+
   output$dich_single_parameters<-renderPrint({
-    # Should we add models for the parameters?
-    #temp_fit()$parameters
-    
-    temp_fit()$prior$prior$parameters
-    
-    temp_fit()$parameters
+    fit_dich_single()$prior$prior$parameters
+    fit_dich_single()$parameters
   })
   
   output$dich_single_covariance<-renderPrint({
-    temp_fit()$covariance
+    fit_dich_single()$covariance
   })
   
   output$dich_single_gof<-renderTable({
-    data.frame(c(temp_fit()$gof_p_value,temp_fit()$gof_chi_sqr_statistic))
+    data.frame(c(fit_dich_single()$gof_p_value,fit_dich_single()$gof_chi_sqr_statistic))
   })
   
   
   
   ## Need to wrtie single html file
   output$dich_single_output<-renderUI({
-    req(temp_fit())    
+    req(fit_dich_single())    
     ## Need to convert all outputs as HTML files
-    
     test<-renderPlot({
       ggplot()+
-        geom_line(aes(x=temp_fit()$bmd_dist[,1], y=temp_fit()$bmd_dist[,2]))+
+        geom_line(aes(x=fit_dich_single()$bmd_dist[,1], y=fit_dich_single()$bmd_dist[,2]))+
         xlab("BMD")+
         ylab("Probability")+
         ggtitle("\nCDF of BMD")+
         theme_classic()
     })
     
-    text<-capture.output(summary(temp_fit()))
+    text<-capture.output(summary(fit_dich_single()))
     
     
     for (i in 1:length(text)){
@@ -664,20 +702,21 @@ server<- function (input,output){
     # 
     # HTML(merged_output)
   })
+
   
 
   ################# Model Average Single Dichotomous part   
   output$sum_dich_ma<-renderPrint({
-    summary(temp_fit2())
+    summary(fit_dich_ma())
   })
   
   output$bmd_dich_ma<-renderPrint({
-    temp_fit2()$bmd
+    fit_dich_ma()$bmd
   })
   
   
   output$dic_ma_plot<-renderPlotly({
-    plot(temp_fit2())
+    plot(fit_dich_ma())
   })
   
 
