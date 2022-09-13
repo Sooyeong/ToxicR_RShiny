@@ -25,12 +25,6 @@ library(scales)
 library(DT)
 
 
-
-
-
-
-
-
 # Dichotomous example dataset
 mData <- matrix(c(0, 2,50,
                   1, 2,50,
@@ -46,10 +40,48 @@ colnames(mData_df)<-c("D","Y","N")
 # ####Testing Bed#####--> this part will be used for representing output in modeling page
 res<-single_dichotomous_fit(mData[,1],mData[,2],mData[,3],model_type ="hill",fit_type = "mcmc", BMR = 0.1)
 
-
-
-
-
+print_dich_MCMC<-function (x, ...){
+  s_fit <- x
+  alpha = ToxicR:::.evaluate_alpha(s_fit)
+  param_est=paste(round(s_fit$parameter,3), collapse=",   ")
+  params<-paste(s_fit$prior$prior$parameters, collapse=",   ")
+  
+  s_fit$eff_size <- coda::effectiveSize(s_fit$mcmc_result$BMD_samples)
+  s_fit$geweke_z   <- coda::geweke.diag(coda::as.mcmc(s_fit$mcmc_result$BMD_samples),frac1 = 0.3, frac2 = 0.4)$z
+  cat("Summary of single model fit(MCMC) using ToxicR\n")
+  cat("--------------------------------------------------\n")
+  cat(sprintf("Model: %s",s_fit$model),"\n")
+  
+  cat("\nBMD: ")
+  cat(sprintf("%1.2f (%1.2f, %1.2f) %1.1f%% CI\n",
+              s_fit$bmd[2],
+              s_fit$bmd[1],
+              s_fit$bmd[3],
+              100*(1-2*alpha)))
+  
+  
+  cat("\nParameters:\n")
+  cat(sprintf("  %s \n\n", params))
+  
+  cat("Parameter estimates:\n")
+  cat(sprintf("%s\n\n", param_est))
+  
+  
+  cat("Covariance Matrix:\n")
+  
+  for (i in 1:nrow(s_fit$covariance)){
+    temp<-paste(round(s_fit$covariance[i,],3), collapse="  ")
+    cat(sprintf(" %s \n",temp))
+    
+  }
+  
+  cat("\nConvergence Diagnostics on BMD\n")
+  cat("--------------------------------------------------\n")
+  cat(sprintf("Effective Sample Size: %1.2f\n\n", s_fit$eff_size) )
+  cat(sprintf("Geweke Z-score that mean of first 30%% of \nMCMC chain is different from last 40%%\nZ-Score: %1.3f  P-value %1.3f\n",
+              s_fit$geweke_z,2*pnorm(abs(s_fit$geweke_z),lower.tail=F)))
+  
+}
 ## Start from data inputs 
 # Continuous example dataset
 
@@ -117,21 +149,7 @@ cont_dr_example<-data.frame(cont_dr_example)
  
  
 # For this part how can we assign html object
-plot(res)
 
-text<-capture.output(summary(res))
-
-res$prior$prior$parameters
- 
-
-text[length(text)+1]<-res$prior$prior$parameters[1]
-
-
-text  
-res$prior$prior$parameters
-
- 
-res$options
 # 
 # # Multi fitting default model should be represented
 # res2<-ma_dichotomous_fit(mData[,1],mData[,2],mData[,3],model_list=priors,fit_type = "mcmc", BMR = 0.1)
@@ -314,20 +332,23 @@ ui<-navbarPage(title = "Toxic R", selected="Dichotomous Fitting",
                                             ),
                                    tabPanel("Single Model", 
                                             # 08/24/22 This part needs to be combined as single HTML output
-                                            uiOutput("dich_single_output"),
+                                            
+                                            #uiOutput("dich_single_output"),
+                                            
                                             plotlyOutput(outputId = "dic_sing_plot"),
-                                            plotOutput(outputId="dic_sing_plot_cdf"),
                                             verbatimTextOutput("sum_dich_single"),
-                                            verbatimTextOutput("bmd_dich_single"),
-                                            verbatimTextOutput("dich_single_parameters"),
-                                            verbatimTextOutput("dich_single_covariance"),
-                                            tableOutput("dich_single_gof"),
+                                            
+                                            plotOutput(outputId="dic_sing_plot_cdf"),
+                                          
+                                            # verbatimTextOutput("dich_single_parameters"),
+                                            # verbatimTextOutput("dich_single_covariance"),
+                                            #tableOutput("dich_single_gof"),
                                             downloadButton("download1", "Download")
                                             ),
                                    tabPanel("Model Average", 
                                             plotlyOutput(outputId = "dic_ma_plot"), 
                                             verbatimTextOutput("sum_dich_ma"),
-                                            verbatimTextOutput("bmd_dich_ma"),
+                                            #verbatimTextOutput("bmd_dich_ma"),
                                             downloadButton("download2", "Download")
                                             )
                                   )
@@ -560,17 +581,11 @@ server<- function (input,output){
     }
   }
   )
-    # 
-    # single_continuous_fit(v_cont_summary$data$D,v_cont_summary$data[,2:4],
-    #                       model_type=input$model_cont,
-    #                       fit_type=input$fit_type3,
-    #                       BMR=input$bmr_slide3)
-    # 
-    # 
+
     
     
-    
-  
+  ## Continuous MA fitting case will provide a default option since it requires
+  ## 2nd input other than model list
   fit_cont_ma<-eventReactive(input$run_cont_MA,{
     # priors<-list()
     # for (i in 1:length(input$cont_MA_input)){
@@ -631,35 +646,36 @@ server<- function (input,output){
     req(input$run_dich_single)
     isolate(fit_dich_single())
       ggplot()+
-        geom_line(aes(x=fit_dich_single()$bmd_dist[,1], y=fit_dich_single()$bmd_dist[,2]))+
+        geom_line(aes(x=fit_dich_single()$bmd_dist[,1], y=fit_dich_single()$bmd_dist[,2]),
+                  size=2,color="blue")+
+        geom_point(aes(x=fit_dich_single()$bmd_dist[which(fit_dich_single()$bmd_dist[,2]==0.5),1],
+                      y=fit_dich_single()$bmd_dist[which(fit_dich_single()$bmd_dist[,2]==0.5),2]),
+                   color="red",size=5)+
         xlab("BMD")+
         ylab("Probability")+
-        ggtitle("\nCDF of BMD")+
-        theme_classic()
+        ggtitle("\n   CDF of BMD")+
+        theme_bw()+
+        theme(axis.title=element_text(size=14),
+              plot.title=element_text(size=15))
   })
   
   
   output$sum_dich_single<-renderPrint({
     req(input$run_dich_single)
     isolate(fit_dich_single())
-    summary(fit_dich_single())
+    print_dich_MCMC(fit_dich_single())
 
   })
   
-  output$bmd_dich_single<-renderPrint({
-    req(input$run_dich_single)
-    isolate(fit_dich_single())
-    fit_dich_single()$bmd
-  })
-
-  output$dich_single_parameters<-renderPrint({
-    fit_dich_single()$prior$prior$parameters
-    fit_dich_single()$parameters
-  })
-  
-  output$dich_single_covariance<-renderPrint({
-    fit_dich_single()$covariance
-  })
+# 
+#   output$dich_single_parameters<-renderPrint({
+#     fit_dich_single()$prior$prior$parameters
+#     fit_dich_single()$parameters
+#   })
+#   
+#   output$dich_single_covariance<-renderPrint({
+#     fit_dich_single()$covariance
+#   })
   
   output$dich_single_gof<-renderTable({
     data.frame(c(fit_dich_single()$gof_p_value,fit_dich_single()$gof_chi_sqr_statistic))
@@ -667,7 +683,7 @@ server<- function (input,output){
   
   
   
-  ## Need to wrtie single html file
+  ## Need to write single html file
   output$dich_single_output<-renderUI({
     req(fit_dich_single())    
     ## Need to convert all outputs as HTML files
@@ -680,7 +696,7 @@ server<- function (input,output){
         theme_classic()
     })
     
-    text<-capture.output(summary(fit_dich_single()))
+     text<-capture.output(summary(fit_dich_single()))
     
     
     for (i in 1:length(text)){
